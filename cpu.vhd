@@ -27,7 +27,7 @@ entity CPU is
 		-- output inteface signals
 		OUT_BUSY	: in std_logic;
 		OUT_DATA	: out std_logic;
-		OUT_EN		: out std_logic;
+		OUT_WE		: out std_logic;
 		OUT_INV		: out std_logic;
 
 		-- state signals
@@ -49,7 +49,7 @@ signal ras		: t_ras := (others => (others => '0'));
 signal ras_top	: integer 0 down to 15 := 0;
 
 -- states of the cpu
-type t_state is (IDLE, INIT, FIND_START, INC_MEM, DEC_MEM, FETCH);
+type t_state is (IDLE, INIT, FIND_START, FETCH, DECODE, INC_MEM, DEC_MEM, OUT_LOOP, IN_LOOP);
 signal state	: t_state := IDLE
 
 
@@ -117,7 +117,13 @@ begin
 						DATA_ADDR <= ptr;
 						state = DEC_MEM;
 					when X"2E" =>
+						DATA_EN <= 1;
+						DATA_RDWR <= '1';
+						DATA_ADDR <= ptr;
+						state <= OUT_LOOP;
 					when X"2C" =>
+						IN_REQ <= '1';
+						state <= IN_LOOP;
 					when X"5B" =>
 					when X"5D" =>
 					when X"28" =>
@@ -128,6 +134,7 @@ begin
 						state = IDLE;
 					when others =>
 						pc <= pc + 1;
+						state <= FETCH;
 				end case;
 			when INC_MEM =>
 				DATA_EN <= 1;
@@ -142,6 +149,26 @@ begin
 				DATA_ADDR <= ptr;
 				DATA_WDATA <= DATA_RDATA - 1;
 				pc <= pc + 1;
+			when OUT_LOOP =>
+				if OUT_BUSY = '1' then
+					DATA_EN <= 1;
+					DATA_RDWR <= '1';
+					DATA_ADDR <= ptr;
+				else
+					OUT_WE <= '1';
+					OUT_DATA <= DATA_RDATA;
+					pc <= pc + 1;
+					state <= FETCH;
+				endif
+			when IN_LOOP =>
+				if IN_VLD = '1' then
+					DATA_EN <= 1;
+					DATA_RDWR <= '0';
+					DATA_ADDR <= ptr;
+					DATA_WDATA <= IN_DATA;
+					IN_REQ <= '0';
+					pc <= pc + 1;
+				endif
 		end case;
 
 end architecture;
