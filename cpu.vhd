@@ -49,7 +49,7 @@ signal ras		: t_ras := (others => (others => '0'));
 signal ras_top	: integer 0 down to 15 := 0;
 
 -- states of the cpu
-type t_state is (IDLE, INIT, FIND_START, FETCH);
+type t_state is (IDLE, INIT, FIND_START, INC_MEM, DEC_MEM, FETCH);
 signal state	: t_state := IDLE
 
 
@@ -63,6 +63,8 @@ begin
 		pc := (others => '0');
 		state <= IDLE;
 	else if rising_edge(CLK) then
+		DATA_EN <= '0';
+		DATA_RDWR <= '0';
 		state <= INIT;
 		case state is
 			when IDLE =>
@@ -76,23 +78,44 @@ begin
 				state <= FIND_START
 			when FIND_START =>
 				if (DATA_RDATA = X"40") then
-					pc <= pc + 1;
-					ptr <= pc +1;
+					ptr <= pc;
+					pc <= (others => '0');
 					READY <= 1;
 					state <= FETCH;
 				else then
 					pc <= pc + 1;
-					DATA_ADRR <= pc;
 				endif
 			when FETCH =>
+				DATA_EN <= '1';
+				DATA_RDWR <= '1';
 				DATA_ADRR <= pc;
 				state <= DECODE;
 			when DECODE =>
-				case DATA_ADDR is
-					when X"3E" =>
-					when X"3C" =>
+				case DATA_RDATA is
+					when X"3E" => -- Incrementing of pointer
+						if ptr = X'1FFF' then
+							ptr <= (others => '0');
+						else
+							ptr <= ptr + 1;
+						endif
+						pc <= pc + 1;
+					when X"3C" => -- Decrementing of pointer
+						if ptr = X'0000' then
+							ptr <= '1FFF'
+						else
+							ptr <= ptr - 1;
+						endif
+						pc <= pc + 1;
 					when X"2B" =>
+						DATA_EN <= 1;
+						DATA_RDWR <= '1';
+						DATA_ADRR <= ptr;
+						state <= INC_MEM;
 					when X"2D" =>
+						DATA_EN <= 1;
+						DATA_RDWR <= '1';
+						DATA_ADDR <= ptr;
+						state = DEC_MEM;
 					when X"2E" =>
 					when X"2C" =>
 					when X"5B" =>
@@ -106,6 +129,19 @@ begin
 					when others =>
 						pc <= pc + 1;
 				end case;
+			when INC_MEM =>
+				DATA_EN <= 1;
+				DATA_RDWR <= '0';
+				DATA_ADDR <= ptr;
+				DATA_WDATA <= DATA_RDATA + 1;
+				DATA_RDATA <= pc;
+				pc <= pc + 1;
+			when DEC_MEM =>
+				DATA_EN <= 1;
+				DATA_RDWR <= '0';
+				DATA_ADDR <= ptr;
+				DATA_WDATA <= DATA_RDATA - 1;
+				pc <= pc + 1;
 		end case;
 
 end architecture;
