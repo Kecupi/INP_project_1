@@ -49,7 +49,7 @@ signal ras		: t_ras := (others => (others => '0'));
 signal ras_top	: integer 0 down to 15 := 0;
 
 -- states of the cpu
-type t_state is (IDLE, INIT, FETCH);
+type t_state is (IDLE, INIT, FIND_START, FETCH);
 signal state	: t_state := IDLE
 
 
@@ -63,24 +63,28 @@ begin
 		pc := (others => '0');
 		state <= IDLE;
 	else if rising_edge(CLK) then
-		if EN = '1' then
-			state <= INIT;
-			case state is
-				when INIT =>
-					DATA_EN <= '1';
-					DATA_RDWR <= '0';
-					DATA_ADRR <= pc;
-					if (DATA_RDATA = X"40") then
-						pc <= pc + 1;
-						ptr <= pc +1;
-						READY <= 1;
-						state <= FETCH;
-					else then
-						pc <= pc + 1;
-					endif
-				when FETCH =>
-				
-			end case;
-		endif;
+		state <= INIT;
+		case state is
+			when IDLE =>
+				if EN = '1' then
+					state <= INIT;
+				endif;
+			when INIT =>
+				DATA_EN <= '1';
+				DATA_RDWR <= '1';
+				DATA_ADRR <= pc;
+				state <= FIND_START
+			when FIND_START =>
+				if (DATA_RDATA = X"40") then
+					pc <= pc + 1;
+					ptr <= pc +1;
+					READY <= 1;
+					state <= FETCH;
+				else then
+					pc <= pc + 1;
+				endif
+			when FETCH =>
+				pc <= DATA_ADDR;
+		end case;
 
 end architecture;
