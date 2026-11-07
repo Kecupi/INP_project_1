@@ -82,9 +82,30 @@ begin
 					state <= FETCH;
 				else then
 					pc <= pc + 1;
+					DATA_ADRR <= pc;
 				endif
 			when FETCH =>
-				pc <= DATA_ADDR;
+				DATA_ADRR <= pc;
+				state <= DECODE;
+			when DECODE =>
+				case DATA_ADDR is
+					when X"3E" =>
+					when X"3C" =>
+					when X"2B" =>
+					when X"2D" =>
+					when X"2E" =>
+					when X"2C" =>
+					when X"5B" =>
+					when X"5D" =>
+					when X"28" =>
+					when X"29" =>
+					when X"40" =>
+						DONE <= 1;
+						READY <= 0;
+						state = IDLE;
+					when others =>
+						pc <= pc + 1;
+				end case;
 		end case;
 
 end architecture;
