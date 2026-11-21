@@ -66,6 +66,7 @@ type t_state is (STATE_IDLE,
 				STATE_STOP
 );
 signal state	: t_state := STATE_IDLE;
+signal await_data 	: std_logic := '0';
 begin
 
 process(CLK, RESET)
@@ -99,113 +100,146 @@ begin
 					DATA_RDWR <= '1';
 					DATA_ADDR <= pc;
 					state <= STATE_FIND_START;
+					await_data <= '1';
 				when STATE_FIND_START =>
-					if (DATA_RDATA = X"40") then
-						ptr <= pc;
-						pc <= (others => '0');
-						READY <= '1';
-						state <= STATE_FETCH;
+					if await_data = '0' then
+						if (DATA_RDATA = X"40") then
+							ptr <= pc + 1;
+							pc <= (others => '0');
+							READY <= '1';
+							state <= STATE_FETCH;
+						else
+							pc <= pc + 1;
+							DATA_EN <= '1';
+							DATA_RDWR <= '1';
+							DATA_ADDR <= pc + 1;
+							await_data <= '1';
+						end if;
 					else
-						pc <= pc + 1;
-						DATA_EN <= '1';
-						DATA_RDWR <= '1';
-						DATA_ADDR <= pc + 1;
+						await_data <= '0';
 					end if;
 				when STATE_FETCH =>
-					DATA_EN <= '1';
-					DATA_RDWR <= '1';
-					DATA_ADDR <= pc;
-					state <= STATE_DECODE;
-				when STATE_DECODE =>
-					case DATA_RDATA is
-						when X"3E" => -- Incrementing of pointer
-							if ptr = "1111111111111" then
-								ptr <= (others => '0');
-							else
-								ptr <= ptr + 1;
-							end if;
-							pc <= pc + 1;
-							state <= STATE_FETCH;
-						when X"3C" => -- Decrementing of pointer
-							if ptr = "0000000000000" then
-								ptr <= "1111111111111";
-							else
-								ptr <= ptr - 1;
-							end if;
-							pc <= pc + 1;
-							state <= STATE_FETCH;
-						when X"2B" => -- Incrementing in adressed memory cell
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							state <= STATE_INC_MEM;
-						when X"2D" => -- Decrementing in adressed memory cell
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							state <= STATE_DEC_MEM;
-						when X"2E" => -- Outputting a character from memory
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							state <= STATE_OUTPUT;
-						when X"2C" => -- Loading character into memory
-							IN_REQ <= '1';
-							state <= STATE_INPUT;
-						when X"5B" =>
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							pc <= pc + 1;
-							state <= STATE_WHILE_START;
-						when X"5D" =>
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							state <= STATE_CYCLE_END;
-						when X"28" =>
-							if ras_top < 15 then
-								ras(ras_top) <= pc + 1;
-								ras_top <= ras_top + 1;
-							end if;
-							pc <= pc + 1;
-							state <= STATE_FETCH;
-						when X"29" =>
-							DATA_EN <= '1';
-							DATA_RDWR <= '1';
-							DATA_ADDR <= ptr;
-							state <= STATE_CYCLE_END;
-						when X"40" =>
-							DONE <= '1';
-							state <= STATE_STOP;
-						when others =>
-							pc <= pc + 1;
-							state <= STATE_FETCH;
-					end case;
-				when STATE_INC_MEM =>
-					DATA_EN <= '1';
-					DATA_RDWR <= '0';
-					DATA_ADDR <= ptr;
-					DATA_WDATA <= DATA_RDATA + 1;
-					pc <= pc + 1;
-					state <= STATE_FETCH;
-				when STATE_DEC_MEM =>
-					DATA_EN <= '1';
-					DATA_RDWR <= '0';
-					DATA_ADDR <= ptr;
-					DATA_WDATA <= DATA_RDATA - 1;
-					pc <= pc + 1;
-					state <= STATE_FETCH;
-				when STATE_OUTPUT =>
-					if OUT_BUSY = '1' then
+					if await_data = '0' then
 						DATA_EN <= '1';
 						DATA_RDWR <= '1';
-						DATA_ADDR <= ptr;
+						DATA_ADDR <= pc;
+						await_data <= '1';
+						state <= STATE_DECODE;
 					else
-						OUT_WE <= '1';
-						OUT_DATA <= DATA_RDATA;
+						await_data <= '0';
+					end if;
+				when STATE_DECODE =>
+					if await_data = '0' then
+						case DATA_RDATA is
+							when X"3E" => -- Incrementing of pointer
+								if ptr = "1111111111111" then
+									ptr <= (others => '0');
+								else
+									ptr <= ptr + 1;
+								end if;
+								pc <= pc + 1;
+								state <= STATE_FETCH;
+							when X"3C" => -- Decrementing of pointer
+								if ptr = "0000000000000" then
+									ptr <= "1111111111111";
+								else
+									ptr <= ptr - 1;
+								end if;
+								pc <= pc + 1;
+								state <= STATE_FETCH;
+							when X"2B" => -- Incrementing in adressed memory cell
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								await_data <= '1';
+								state <= STATE_INC_MEM;
+							when X"2D" => -- Decrementing in adressed memory cell
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								await_data <= '1';
+								state <= STATE_DEC_MEM;
+							when X"2E" => -- Outputting a character from memory
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								await_data <= '1';
+								state <= STATE_OUTPUT;
+							when X"2C" => -- Loading character into memory
+								IN_REQ <= '1';
+								state <= STATE_INPUT;
+							when X"5B" =>
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								pc <= pc + 1;
+								await_data <= '1';
+								state <= STATE_WHILE_START;
+							when X"5D" =>
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								await_data <= '1';
+								state <= STATE_CYCLE_END;
+							when X"28" =>
+								if ras_top < 15 then
+									ras(ras_top) <= pc + 1;
+									ras_top <= ras_top + 1;
+								end if;
+								pc <= pc + 1;
+								state <= STATE_FETCH;
+							when X"29" =>
+								DATA_EN <= '1';
+								DATA_RDWR <= '1';
+								DATA_ADDR <= ptr;
+								await_data <= '1';
+								state <= STATE_CYCLE_END;
+							when X"40" =>
+								DONE <= '1';
+								state <= STATE_STOP;
+							when others =>
+								pc <= pc + 1;
+								state <= STATE_FETCH;
+						end case;
+					else
+						await_data <= '0';
+					end if;
+				when STATE_INC_MEM =>
+					if await_data = '0' then
+						DATA_EN <= '1';
+						DATA_RDWR <= '0';
+						DATA_ADDR <= ptr;
+						DATA_WDATA <= DATA_RDATA + 1;
 						pc <= pc + 1;
 						state <= STATE_FETCH;
+					else
+						await_data <= '0';
+					end if;
+				when STATE_DEC_MEM =>
+					if await_data = '0' then
+						DATA_EN <= '1';
+						DATA_RDWR <= '0';
+						DATA_ADDR <= ptr;
+						DATA_WDATA <= DATA_RDATA - 1;
+						pc <= pc + 1;
+						state <= STATE_FETCH;
+					else
+						await_data <= '0';
+					end if;
+				when STATE_OUTPUT =>
+					if await_data = '0' then
+						if OUT_BUSY = '1' then
+							DATA_EN <= '1';
+							DATA_RDWR <= '1';
+							DATA_ADDR <= ptr;
+						else
+							OUT_WE <= '1';
+							OUT_DATA <= DATA_RDATA;
+							pc <= pc + 1;
+							state <= STATE_FETCH;
+						end if;
+					else
+						await_data <= '0';
 					end if;
 				when STATE_INPUT =>
 					if IN_VLD = '1' then
@@ -218,45 +252,59 @@ begin
 						state <= STATE_FETCH;
 					end if;
 				when STATE_WHILE_START =>
-					if DATA_RDATA = X"00" then
-						cnt <= X"01";
-						DATA_EN <= '1';
-						DATA_RDWR <= '1';
-						DATA_ADDR <= pc;
-						state <= STATE_WHILE_LOOP;
-					else
-						if ras_top < 15 then
-							ras(ras_top) <= pc;
-							ras_top <= ras_top + 1;
+					if await_data = '0' then
+						if DATA_RDATA = X"00" then
+							cnt <= X"01";
+							DATA_EN <= '1';
+							DATA_RDWR <= '1';
+							DATA_ADDR <= pc;
+							await_data <= '1';
+							state <= STATE_WHILE_LOOP;
+						else
+							if ras_top < 15 then
+								ras(ras_top) <= pc;
+								ras_top <= ras_top + 1;
+							end if;
+							state <= STATE_FETCH;
 						end if;
-						state <= STATE_FETCH;
+					else
+						await_data <= '0';
 					end if;
 				when STATE_WHILE_LOOP =>
-					if cnt /= 0 then
-						if DATA_RDATA = X"5B" then
-							cnt <= cnt + 1;
-						elsif DATA_RDATA = X"5D" then
-							cnt <= cnt - 1;
+					if await_data = '0' then
+						if cnt /= 0 then
+							if DATA_RDATA = X"5B" then
+								cnt <= cnt + 1;
+							elsif DATA_RDATA = X"5D" then
+								cnt <= cnt - 1;
+							end if;
+							DATA_EN <= '1';
+							DATA_RDWR <= '1';
+							DATA_ADDR <= pc;
+							await_data <= '1';
+							pc <= pc + 1;
+						else
+							state <= STATE_FETCH;
 						end if;
-						DATA_EN <= '1';
-						DATA_RDWR <= '1';
-						DATA_ADDR <= pc;
-						pc <= pc + 1;
 					else
-						state <= STATE_FETCH;
+						await_data <= '0';
 					end if;
 				when STATE_CYCLE_END =>
-					if DATA_RDATA = X"00" then
-						pc <= pc + 1;
-						if ras_top > 0 then
-							ras_top <= ras_top - 1;
+					if await_data = '0' then
+						if DATA_RDATA = X"00" then
+							pc <= pc + 1;
+							if ras_top > 0 then
+								ras_top <= ras_top - 1;
+							end if;
+						else
+							if ras_top > 0 then
+								pc <= ras(ras_top-1);
+							end if;
 						end if;
+						state <= STATE_FETCH;
 					else
-						if ras_top > 0 then
-							pc <= ras(ras_top-1);
-						end if;
+						await_data <= '0';
 					end if;
-					state <= STATE_FETCH;
 				when STATE_STOP =>
 					DONE <= '1';
 			end case;
