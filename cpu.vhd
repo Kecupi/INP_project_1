@@ -163,6 +163,7 @@ begin
 								DATA_RDWR <= '1';
 								DATA_ADDR <= ptr;
 								await_data <= '1';
+								OUT_DATA <= (others => '0');
 								state <= STATE_OUTPUT;
 							when X"2C" => -- Loading character into memory
 								IN_REQ <= '1';
@@ -184,8 +185,9 @@ begin
 								if ras_cnt < 16 then
 									ras(0) <= pc + 1;
 									ras(1 to 15) <= ras(0 to 14);
+									ras_cnt <= ras_cnt + 1;
 									pc <= pc + 1;
-								endif;
+								end if;
 								state <= STATE_FETCH;
 							when X"29" =>
 								DATA_EN <= '1';
@@ -264,8 +266,8 @@ begin
 							if ras_cnt < 16 then 
 								ras(0) <= pc;
 								ras(1 to 15) <= ras(0 to 14);
-								ras_cnt < ras_cnt + 1;
-							endif;
+								ras_cnt <= ras_cnt + 1;
+							end if;
 							state <= STATE_FETCH;
 						end if;
 					else
