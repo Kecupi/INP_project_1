@@ -63,7 +63,7 @@ type t_state is (STATE_IDLE,
 				STATE_WHILE_START,
 				STATE_WHILE_LOOP,
 				STATE_CYCLE_END,
-				STATE_STOP
+				STATE_HALT
 );
 signal state	: t_state := STATE_IDLE;
 signal await_data 	: std_logic := '0';
@@ -196,7 +196,7 @@ begin
 								state <= STATE_CYCLE_END;
 							when X"40" =>
 								DONE <= '1';
-								state <= STATE_STOP;
+								state <= STATE_HALT;
 							when others =>
 								pc <= pc + 1;
 								state <= STATE_FETCH;
@@ -258,6 +258,7 @@ begin
 							DATA_EN <= '1';
 							DATA_RDWR <= '1';
 							DATA_ADDR <= pc;
+							pc <= pc + 1;
 							await_data <= '1';
 							state <= STATE_WHILE_LOOP;
 						else
@@ -272,7 +273,10 @@ begin
 					end if;
 				when STATE_WHILE_LOOP =>
 					if await_data = '0' then
-						if cnt /= 0 then
+						if cnt = X"01" and DATA_RDATA = X"5D" then
+							cnt <= (others => '0');
+							state <= STATE_FETCH;
+						else
 							if DATA_RDATA = X"5B" then
 								cnt <= cnt + 1;
 							elsif DATA_RDATA = X"5D" then
@@ -283,8 +287,6 @@ begin
 							DATA_ADDR <= pc;
 							await_data <= '1';
 							pc <= pc + 1;
-						else
-							state <= STATE_FETCH;
 						end if;
 					else
 						await_data <= '0';
@@ -305,7 +307,7 @@ begin
 					else
 						await_data <= '0';
 					end if;
-				when STATE_STOP =>
+				when STATE_HALT =>
 					DONE <= '1';
 			end case;
 		end if;
