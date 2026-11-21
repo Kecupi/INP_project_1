@@ -48,7 +48,7 @@ signal pc		: std_logic_vector(12 downto 0) := (others => '0');
 -- return adress stack
 type t_ras is array(0 to 15) of std_logic_vector(12 downto 0);
 signal ras		: t_ras := (others => (others => '0'));
-signal ras_top	: integer range 0 to 15 := 0;
+signal ras_cnt	: integer range 0 to 16 := 0;
 
 -- states of the cpu
 type t_state is (STATE_IDLE,
@@ -82,7 +82,6 @@ begin
 		OUT_DATA <= (others => '0');
 		OUT_WE <= '0';
 		OUT_INV <= '0';
-		ras_top <= 0;
 		cnt <= (others => '0');
 		ptr <= (others => '0');
 		pc <= (others => '0');
@@ -182,9 +181,11 @@ begin
 								await_data <= '1';
 								state <= STATE_CYCLE_END;
 							when X"28" =>
-								ras(0) <= pc + 1;
-								ras(1 to 15) <= ras(0 to 14);
-								pc <= pc + 1;
+								if ras_cnt < 16 then
+									ras(0) <= pc + 1;
+									ras(1 to 15) <= ras(0 to 14);
+									pc <= pc + 1;
+								endif;
 								state <= STATE_FETCH;
 							when X"29" =>
 								DATA_EN <= '1';
@@ -260,8 +261,11 @@ begin
 							await_data <= '1';
 							state <= STATE_WHILE_LOOP;
 						else
-							ras(0) <= pc;
-							ras(1 to 15) <= ras(0 to 14);
+							if ras_cnt < 16 then 
+								ras(0) <= pc;
+								ras(1 to 15) <= ras(0 to 14);
+								ras_cnt < ras_cnt + 1;
+							endif;
 							state <= STATE_FETCH;
 						end if;
 					else
@@ -291,10 +295,14 @@ begin
 					if await_data = '0' then
 						if DATA_RDATA = X"00" then
 							pc <= pc + 1;
-							ras(0 to 14) <= ras(1 to 15);
-							ras(15) <= (others => '0');
+							if ras_cnt > 0 then
+								ras(0 to 14) <= ras(1 to 15);
+								ras_cnt <= ras_cnt - 1;
+							end if;
 						else
-							pc <= ras(0);
+							if ras_cnt > 0 then
+								pc <= ras(0);
+							end if;
 						end if;
 						state <= STATE_FETCH;
 					else
