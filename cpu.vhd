@@ -182,10 +182,8 @@ begin
 								await_data <= '1';
 								state <= STATE_CYCLE_END;
 							when X"28" =>
-								if ras_top < 15 then
-									ras(ras_top) <= pc + 1;
-									ras_top <= ras_top + 1;
-								end if;
+								ras(0) <= pc + 1;
+								ras(1 to 15) <= ras(0 to 14);
 								pc <= pc + 1;
 								state <= STATE_FETCH;
 							when X"29" =>
@@ -262,10 +260,8 @@ begin
 							await_data <= '1';
 							state <= STATE_WHILE_LOOP;
 						else
-							if ras_top < 15 then
-								ras(ras_top) <= pc;
-								ras_top <= ras_top + 1;
-							end if;
+							ras(0) <= pc;
+							ras(1 to 15) <= ras(0 to 14);
 							state <= STATE_FETCH;
 						end if;
 					else
@@ -295,13 +291,10 @@ begin
 					if await_data = '0' then
 						if DATA_RDATA = X"00" then
 							pc <= pc + 1;
-							if ras_top > 0 then
-								ras_top <= ras_top - 1;
-							end if;
+							ras(0 to 14) <= ras(1 to 15);
+							ras(15) <= (others => '0');
 						else
-							if ras_top > 0 then
-								pc <= ras(ras_top-1);
-							end if;
+							pc <= ras(0);
 						end if;
 						state <= STATE_FETCH;
 					else
